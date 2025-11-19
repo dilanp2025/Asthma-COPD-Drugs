@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Asthma • COPD • Cough & Congestion — Drag & Drop Match</title>
+<style>
+  :root{
+    --bg:#0b1220; --card:#121a2b; --ink:#e8eefc; --muted:#a7b1c9;
+    --ok:#2ecc71; --bad:#e74c3c; --accent:#5b8cff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;
+    background:radial-gradient(1200px 800px at 10% -10%, #15243f, #0b1220 60%);
+    color:var(--ink);
+    min-height:100vh; display:flex; flex-direction:column; gap:20px;
+  }
+  header{padding:18px 20px 0}
+  h1{margin:0 0 8px; font-size:clamp(20px,3.6vw,30px); font-weight:750; letter-spacing:.2px}
+  p.lead{margin:0; color:var(--muted)}
+  .wrap{display:grid; gap:18px; padding:10px 20px 28px}
+  @media(min-width:1000px){ .wrap{ grid-template-columns:1fr 1fr; } }
+  .panel{
+    background:linear-gradient(180deg, #121a2b 0%, #0f1728 100%);
+    border:1px solid #1e2740; border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel h2{margin:0 0 8px; font-size:18px; color:#c9d7ff; font-weight:700}
+  .list, .grid{display:grid; gap:10px}
+  .list{grid-auto-rows:minmax(48px,auto)}
+  .pill{
+    background:#0e1628; border:1px solid #223055; border-radius:12px; padding:10px 12px;
+    font-weight:650; cursor:grab; user-select:none; display:flex; align-items:center; justify-content:space-between;
+    transition:transform .08s ease, border-color .15s ease, background .15s ease;
+  }
+  .pill:active{transform:scale(.98); cursor:grabbing}
+  .pill.lock{cursor:default; background:#0f1b33; border-color:#28407a}
+  .desc{
+    border:1.5px dashed #2a3a62; border-radius:12px; padding:12px; min-height:56px;
+    display:grid; align-items:center; transition:border-color .15s ease, background .15s ease;
+    background:#0e1527;
+  }
+  .desc .slotTitle{color:#c9d7ff; font-weight:700; font-size:14px; margin-bottom:4px}
+  .desc .text{color:#dbe6ff; font-size:14px; line-height:1.3}
+  .desc.correct{border-color:var(--ok); background:rgba(46,204,113,.08)}
+  .desc.wrong{border-color:var(--bad); background:rgba(231,76,60,.08)}
+  .desc .accept{opacity:.65; font-style:italic; font-size:12px}
+  .footer{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-top:6px;
+  }
+  .btn{
+    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:700; cursor:pointer;
+    background:linear-gradient(180deg,#6b90ff,#4f73f1); color:white; box-shadow:0 6px 18px rgba(79,115,241,.35);
+  }
+  .btn.secondary{background:#192548; color:#d7e3ff; box-shadow:none; border:1px solid #2a3a62}
+  .score{color:#cfe0ff; font-weight:700}
+  .tiny{font-size:12px; color:#9fb0d6}
+  .tag{display:inline-block; padding:.2em .55em; border:1px solid #2a3a62; border-radius:999px; font-size:12px; color:#b9c9f5}
+  .bucket{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Asthma • COPD • Cough & Congestion — Drag & Drop Matching</h1>
+    <p class="lead">Drag each <b>drug</b> (left) onto its matching <b>category-included description</b> (right). Key <b>red-text warnings/contraindications</b> from the slides are included. Items shuffle on load or via the button.</p>
+  </header>
+
+  <div class="wrap">
+    <section class="panel">
+      <h2>Drugs</h2>
+      <div id="drugList" class="list" aria-label="Draggable drug names"></div>
+      <div class="footer">
+        <div class="bucket" id="legend"></div>
+        <div>
+          <button id="shuffle" class="btn">Shuffle</button>
+          <button id="reset" class="btn secondary">Reset</button>
+        </div>
+      </div>
+      <p class="tiny">Source: “Drugs to Treat Asthma, COPD, Cough and Congestion (Iszard)” PDF uploaded in this chat.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Descriptions</h2>
+      <div id="descGrid" class="grid"></div>
+      <div class="footer">
+        <div class="score" id="scoreArea">0 / 35 correct</div>
+      </div>
+    </section>
+  </div>
+
+<script>
+const ITEMS = [
+  // --- SABA ---
+  {id:"albuterol", label:"Albuterol", group:"SABA (β2-agonist)",
+   desc:"SABA bronchodilator for asthma/COPD/bronchiolitis. Red warnings: paradoxical bronchospasm, deterioration of asthma, cardiovascular effects, immediate hypersensitivity."},
+  {id:"terbutaline", label:"Terbutaline", group:"SABA (β2-agonist)",
+   desc:"SABA; only β2 agent usable by subcutaneous injection. Indications: bronchospasm in asthma/bronchitis/emphysema. Red: NOT for tocolysis; AEs include headache, nausea, tachycardia/palpitations; sulfur-allergy caution for injection."},
+  {id:"metaproterenol", label:"Metaproterenol", group:"SABA (β2-agonist)",
+   desc:"SABA for asthma and reversible bronchospasm with bronchitis/COPD. Red: significant cardiovascular effects possible; life-threatening paradoxical bronchospasm has occurred."},
+  {id:"pirbuterol", label:"Pirbuterol", group:"SABA (β2-agonist)",
+   desc:"SABA to prevent/reverse bronchospasm ≥12 y; may be used with/without theophylline and/or corticosteroids. Red: clinically significant cardiovascular effects (↑pulse/BP)."},
+  {id:"levalbuterol", label:"Levalbuterol", group:"SABA (β2-agonist)",
+   desc:"SABA for treatment/prevention of bronchospasm. Red warning: life-threatening paradoxical bronchospasm may occur."},
+
+  // --- LABA ---
+  {id:"formoterol", label:"Formoterol", group:"LABA (β2-agonist)",
+   desc:"LABA add-on to ICS for asthma ≥5 y; COPD maintenance. Red boxed: do NOT use without ICS in asthma; LABA ↑ asthma-related deaths/hospitalizations; prescribe only with long-term control med (ICS)."},
+  {id:"salmeterol", label:"Salmeterol", group:"LABA (β2-agonist)",
+   desc:"LABA for asthma ≥4 y; prevent EIB; COPD maintenance. Red: use concomitantly with an ICS for asthma; class warning ↑ asthma-related deaths/hospitalizations."},
+  {id:"indacaterol", label:"Indacaterol", group:"LABA (β2-agonist)",
+   desc:"LABA for COPD (chronic bronchitis/emphysema). Red: asthma use only with ICS; class warning on ↑ asthma-related deaths/hospitalizations."},
+  {id:"vilanterol", label:"Vilanterol", group:"LABA (β2-agonist)",
+   desc:"LABA (often in fixed combos) for COPD. Red: for asthma, only with ICS; class warning ↑ asthma-related mortality/hospitalization."},
+  {id:"olodaterol", label:"Olodaterol", group:"LABA (β2-agonist)",
+   desc:"LABA for once-daily COPD maintenance. Red: for asthma, must be with ICS; class warning ↑ asthma-related deaths/hospitalizations."},
+
+  // --- Anticholinergics ---
+  {id:"atropine", label:"Atropine", group:"Anticholinergic (SAMA)",
+   desc:"Muscarinic antagonist for temporary blockade of severe/life-threatening muscarinic effects. Red caution: in CAD, limit total dose to 2–3 mg to avoid tachycardia-induced ↑ myo-O₂ demand."},
+  {id:"ipratropium", label:"Ipratropium", group:"Anticholinergic (SAMA)",
+   desc:"Maintenance bronchodilator for COPD (chronic bronchitis/emphysema); poorly absorbed after aerosol → fewer systemic atropine-like effects."},
+  {id:"tiotropium", label:"Tiotropium", group:"Anticholinergic (LAMA)",
+   desc:"Once-daily LAMA for COPD maintenance and for reducing COPD exacerbations."},
+  {id:"aclidinium", label:"Aclidinium", group:"Anticholinergic (LAMA)",
+   desc:"Long-term maintenance treatment of bronchospasm associated with COPD (chronic bronchitis/emphysema)."},
+
+  // --- ICS ---
+  {id:"beclomethasone", label:"Beclomethasone", group:"Inhaled corticosteroid (ICS)",
+   desc:"ICS maintenance/prophylaxis ≥5 y; steroid-sparing. Red: deaths due to adrenal insufficiency reported during/after transfer from systemic steroids; months required for HPA axis recovery."},
+  {id:"budesonide", label:"Budesonide", group:"Inhaled corticosteroid (ICS)",
+   desc:"ICS maintenance/prophylaxis ≥6 y. Red: NOT for status asthmaticus/acute episodes; severe milk-protein hypersensitivity is a contraindication."},
+  {id:"ciclesonide", label:"Ciclesonide", group:"Inhaled corticosteroid (ICS)",
+   desc:"ICS maintenance ≥12 y; prodrug activated by bronchial esterases → less candidiasis. Red: NOT for acute bronchospasm; avoid with oral Candida, TB, or active fungal/bacterial/viral/parasitic infection."},
+  {id:"flunisolide", label:"Flunisolide", group:"Inhaled corticosteroid (ICS)",
+   desc:"ICS maintenance ≥6 y; may reduce systemic steroid need. Red: contraindicated as primary treatment of status asthmaticus/other acute episodes requiring intensive measures."},
+  {id:"fluticasone", label:"Fluticasone", group:"Inhaled corticosteroid (ICS)",
+   desc:"ICS maintenance ≥4 y; not for acute relief. Red: oral/pharyngeal Candida can occur—rinse mouth after inhalation."},
+  {id:"mometasone", label:"Mometasone", group:"Inhaled corticosteroid (ICS)",
+   desc:"ICS maintenance ≥4 y. Red: contraindicated in status asthmaticus or other acute episodes; hypersensitivity to milk proteins/ingredients."},
+  {id:"triamcinolone", label:"Triamcinolone", group:"Inhaled corticosteroid (ICS)",
+   desc:"ICS maintenance; steroid-sparing. Red: not for acute bronchospasm/status asthmaticus; special care when switching from systemic steroids—fatal adrenal insufficiency reported."},
+
+  // --- Oral/Parenteral CS ---
+  {id:"prednisone", label:"Prednisone", group:"Oral corticosteroid (OCS)",
+   desc:"Systemic CS for flare-ups (with SABA) and many inflammatory indications. Red: HPA axis suppression/Cushing’s/hyperglycemia with chronic use—taper gradually after chronic therapy."},
+
+  // --- Methylxanthines ---
+  {id:"theophylline", label:"Theophylline", group:"Methylxanthine",
+   desc:"Bronchodilator + prophylactic (↓ airway responsiveness). Red: use extreme caution with active PUD, seizure disorders, and cardiac arrhythmias."},
+
+  // --- Leukotriene modifiers ---
+  {id:"montelukast", label:"Montelukast", group:"Leukotriene receptor antagonist",
+   desc:"Oral CysLT1 receptor antagonist for allergies and prevention of asthma attacks. Red: NOT for reversal of acute bronchospasm/status asthmaticus; continue during exacerbations and keep SABA for exercise-induced symptoms."},
+  {id:"zafirlukast", label:"Zafirlukast", group:"Leukotriene receptor antagonist",
+   desc:"Oral LTD4/LTE4 antagonist for prophylaxis/chronic treatment ≥5 y. Red: hepatotoxicity including life-threatening hepatic failure; caution with high acetaminophen use; liver injury reported at recommended doses."},
+  {id:"zileuton", label:"Zileuton", group:"5-lipoxygenase inhibitor",
+   desc:"Inhibits leukotriene synthesis (LTB4/LTC4/LTD4/LTE4); prophylaxis/chronic treatment ≥12 y. Red: immediate-release tablets withdrawn (Feb 12, 2008); controlled-release available; avoid in active liver disease or persistent LFTs ≥3× ULN."},
+
+  // --- Monoclonal antibody ---
+  {id:"omalizumab", label:"Omalizumab", group:"Monoclonal antibody (anti-IgE)",
+   desc:"For moderate–severe persistent asthma ≥6 y with perennial allergen positivity and inadequate control on ICS; also chronic idiopathic urticaria ≥12 y. Red boxed: anaphylaxis—administer only where it can be managed; observe after dose."},
+
+  // --- Cough & Congestion ---
+  {id:"guaifenesin", label:"Guaifenesin", group:"Expectorant",
+   desc:"Expectorant that hydrates the respiratory tract to reduce mucus viscosity, aiding ciliary clearance. AEs: nausea, abdominal pain, dizziness."},
+  {id:"dextromethorphan", label:"Dextromethorphan", group:"Antitussive",
+   desc:"Antitussive (levorphanol derivative) for temporary cough relief (best for chronic nonproductive cough); often in fixed combos. Red: CONTRAINDICATED during or within 14 days of MAOI therapy (serotonin syndrome). Warning: avoid for persistent/chronic cough with excess secretions unless directed."},
+  {id:"pseudoephedrine", label:"Pseudoephedrine", group:"Decongestant (α/β-agonist)",
+   desc:"Sympathomimetic decongestant for nasal/sinus congestion; often in fixed combos. Red: misuse/abuse for clandestine meth synthesis; contraindicated in severe HTN, angle-closure glaucoma, urinary retention, or recent (≤14 days) MAOI; hypersensitivity to sympathomimetics."},
+  {id:"phenylephrine", label:"Phenylephrine", group:"Decongestant",
+   desc:"Decongestant that shrinks nasal blood vessels to reduce swelling; treats nasal/sinus congestion due to colds/allergies."},
+  {id:"benzonatate", label:"Benzonatate", group:"Antitussive (non-narcotic)",
+   desc:"Peripherally acting antitussive—anesthetizes stretch receptors in airways/pleura to dampen the cough reflex; symptomatic relief of cough."},
+  {id:"oxymetazoline", label:"Oxymetazoline", group:"Nasal decongestant spray",
+   desc:"Topical nasal decongestant acting directly on nasal tissue to reduce swelling; temporary relief for colds/sinusitis."},
+  {id:"diphenhydramine", label:"Diphenhydramine", group:"Antihistamine",
+   desc:"H1 antihistamine that reduces allergy-related nasal symptoms (sneezing/runny nose). Red slide callout: chronic use recently linked to dementia."},
+  {id:"cetirizine", label:"Cetirizine", group:"Antihistamine",
+   desc:"H1 antihistamine that reduces allergic responses—relieves congestion, sneezing, and itchy eyes due to allergies."}
+];
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const shuffle = a => { for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+let picked = null;
+
+function build() {
+  const drugList = $("#drugList");
+  const descGrid = $("#descGrid");
+  drugList.innerHTML = "";
+  descGrid.innerHTML = "";
+
+  const drugs = shuffle([...ITEMS]);
+  const targets = shuffle([...ITEMS]);
+
+  const groups = [...new Set(ITEMS.map(i=>i.group))];
+  $("#legend").innerHTML = groups.map(g=>`<span class="tag">${g}</span>`).join("");
+
+  drugs.forEach(d=>{
+    const el = document.createElement("div");
+    el.className = "pill";
+    el.textContent = d.label;
+    el.dataset.id = d.id;
+    el.setAttribute("draggable","true");
+    el.title = d.group;
+    el.addEventListener("dragstart", e=> e.dataTransfer.setData("text/plain", d.id));
+    el.addEventListener("click", ()=>{ if(!el.classList.contains("lock")) picked = d.id; });
+    drugList.appendChild(el);
+  });
+
+  targets.forEach(t=>{
+    const box = document.createElement("div");
+    box.className = "desc";
+    box.dataset.id = t.id;
+    box.innerHTML = `<div class="slotTitle">Description</div>
+                     <div class="text">${t.desc}</div>
+                     <div class="accept">Drop the matching drug here</div>`;
+    box.addEventListener("dragover", e=> e.preventDefault());
+    box.addEventListener("drop", e=>{ e.preventDefault(); handleDrop(e.dataTransfer.getData("text/plain"), box); });
+    box.addEventListener("click", ()=>{ if(picked) handleDrop(picked, box); });
+    descGrid.appendChild(box);
+  });
+
+  updateScore();
+}
+
+function handleDrop(id, box){
+  if(!id || box.classList.contains("correct")) return;
+  const pill = $(`.pill[data-id="${id}"]`);
+  if(!pill || pill.classList.contains("lock")) return;
+  if(id === box.dataset.id){
+    box.classList.remove("wrong");
+    box.classList.add("correct");
+    box.querySelector(".accept").innerHTML = `✅ Matched: <b>${pill.textContent}</b>`;
+    pill.classList.add("lock");
+    pill.setAttribute("draggable","false");
+    pill.style.opacity = .55;
+    pill.style.cursor = "default";
+  } else {
+    box.classList.add("wrong");
+    box.querySelector(".accept").textContent = "❌ Not a match. Try again.";
+    setTimeout(()=>{ box.classList.remove("wrong"); box.querySelector(".accept").textContent="Drop the matching drug here"; }, 700);
+  }
+  picked = null;
+  updateScore();
+}
+
+function updateScore(){
+  const correct = $$(".desc.correct").length;
+  $("#scoreArea").textContent = `${correct} / ${ITEMS.length} correct`;
+  if(correct === ITEMS.length){
+    $("#scoreArea").textContent += " – All matched!";
+  }
+}
+
+$("#shuffle").addEventListener("click", build);
+$("#reset").addEventListener("click", ()=>{
+  $$(".pill").forEach(p=>{p.classList.remove("lock"); p.style.opacity=1; p.style.cursor="grab"; p.setAttribute("draggable","true"); });
+  $$(".desc").forEach(d=>{ d.classList.remove("correct","wrong"); d.querySelector(".accept").textContent="Drop the matching drug here"; });
+  updateScore();
+});
+
+build();
+</script>
+</body>
+</html>
